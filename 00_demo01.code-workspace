@@ -131,6 +131,10 @@
         "approve": true,
         "matchCommandLine": true,
       },
+      "/^cd /root/00_nsPrj/01_backEnd/06_elysia/00_demo01 && git push origin feat/v9-clean-better-auth-v2$/": {
+        "approve": true,
+        "matchCommandLine": true,
+      },
     },
   },
 }
