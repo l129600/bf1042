@@ -32,13 +32,6 @@ const store = createStore({ dataFilePath: "./data/store.json" });
 const hasPublicAssets =
   existsSync("./public") && existsSync("./public/index.html");
 
-// ─── Better Auth Plugin ──────────────────────────────────────────────────────
-// 使用 mount 統一掛載 Better Auth handler
-const betterAuthPlugin = new Elysia({ name: "better-auth" }).mount(
-  "/api/auth",
-  auth.handler,
-);
-
 // ─── Auth Helper ──────────────────────────────────────────────────────────────
 // 簡化的 helper 函數，用於保護路由並獲取 user，失敗時拋出 401 錯誤
 async function requireUser(request: Request) {
@@ -58,17 +51,23 @@ const app = new Elysia();
 app.use(
   cors({
     origin:
-      allowedOrigin === "*"
-        ? "*"
-        : allowedOrigin || "http://localhost:5173",
+      allowedOrigin === "*" ? "*" : allowedOrigin || "http://localhost:5173",
     credentials: allowedOrigin !== "*",
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
-// ─── Better Auth Plugin ──────────────────────────────────────────────────────
-app.use(betterAuthPlugin);
+// ─── Better Auth Routes ───────────────────────────────────────────────────────
+// ⚠️ 注意：不能使用 app.mount("/api/auth", auth.handler)
+// 原因：Better Auth handler 是標準的 fetch handler function，
+//       但 Elysia 的 .mount() 期望的是 Elysia instance 或特定格式的 handler。
+//       測試結果：.mount() 會導致 404 錯誤。
+//
+// ✅ 正確做法：使用 wildcard 路由明確處理 GET 和 POST
+// 必須在其他 API 路由之前定義，確保 Better Auth 路由優先匹配
+app.get("/api/auth/*", ({ request }) => auth.handler(request));
+app.post("/api/auth/*", ({ request }) => auth.handler(request));
 
 // ─── OpenAPI Plugin ───────────────────────────────────────────────────────────
 app.use(
