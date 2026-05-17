@@ -1,6 +1,5 @@
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
-import { staticPlugin } from "@elysiajs/static";
 import { cors } from "@elysia/cors";
 import { existsSync } from "node:fs";
 import toTaipeiDateTime from "./util.ts";
@@ -67,22 +66,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
-
-// ─── Static Plugin ────────────────────────────────────────────────────────────
-if (hasPublicAssets) {
-  app.use(
-    staticPlugin({
-      assets: "public",
-      prefix: "/", // 明確設為根路徑
-      indexHTML: true, // 自動 SPA fallback
-      staticLimit: 1024, // 控制效能門檻（KB）
-      ignorePatterns: [
-        /^\/api\//, // 排除所有 API 路徑
-        /^\/openapi/, // 排除 OpenAPI 文件
-      ],
-    }),
-  );
-}
 
 // ─── Better Auth Plugin ──────────────────────────────────────────────────────
 app.use(betterAuthPlugin);
@@ -493,7 +476,32 @@ app.get("/health", () => ({ status: "ok" }), {
   },
 });
 
-// 全局錯誤處理
+// ─── Manual Static File & SPA Fallback ────────────────────────────────────────
+// 完全手動處理靜態檔案和 SPA fallback，避免 staticPlugin 的路由衝突問題
+if (hasPublicAssets) {
+  app.get("*", async ({ request }) => {
+    const pathname = new URL(request.url).pathname;
+
+    // API 路徑返回 404
+    if (pathname.startsWith("/api/") || pathname.startsWith("/openapi")) {
+      return new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // 嘗試回傳對應的靜態檔案
+    const staticFile = Bun.file(`./public${pathname}`);
+    if (pathname !== "/" && (await staticFile.exists())) {
+      return staticFile;
+    }
+
+    // SPA fallback: 回傳 index.html
+    return Bun.file("./public/index.html");
+  });
+}
+
+// 全域錯誤處理
 app.onError(({ error, set, code }) => {
   if (code === "VALIDATION") {
     set.status = 400;
